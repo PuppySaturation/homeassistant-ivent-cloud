@@ -21,6 +21,8 @@ from homeassistant.helpers.selector import (
 
 from .api import IVentApiClient, IVentAuthError, IVentError, IVentNotFoundError, LiveInfo
 from .const import (
+    BASE_URL,
+    CONF_BASE_URL,
     CONF_LOC_ID,
     CONF_SCAN_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
@@ -51,6 +53,9 @@ def _user_schema() -> vol.Schema:
         {
             vol.Required(CONF_API_KEY): TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD)),
             vol.Required(CONF_LOC_ID): NumberSelector(NumberSelectorConfig(min=0, mode=NumberSelectorMode.BOX)),
+            vol.Optional(CONF_BASE_URL, default=BASE_URL): TextSelector(
+                TextSelectorConfig(type=TextSelectorType.URL)
+            ),
         }
     )
 
@@ -60,8 +65,8 @@ class IVentConfigFlow(ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
-    async def _async_validate(self, api_key: str, loc_id: int) -> LiveInfo:
-        client = IVentApiClient(async_get_clientsession(self.hass), api_key, loc_id)
+    async def _async_validate(self, api_key: str, loc_id: int, base_url: str) -> LiveInfo:
+        client = IVentApiClient(async_get_clientsession(self.hass), api_key, loc_id, base_url)
         return await client.async_get_info()
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> Any:
@@ -70,10 +75,11 @@ class IVentConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             api_key = _normalize_api_key(user_input[CONF_API_KEY])
             loc_id = int(user_input[CONF_LOC_ID])
+            base_url = (user_input.get(CONF_BASE_URL) or BASE_URL).strip().rstrip("/") or BASE_URL
             await self.async_set_unique_id(str(loc_id))
             self._abort_if_unique_id_configured()
             try:
-                info = await self._async_validate(api_key, loc_id)
+                info = await self._async_validate(api_key, loc_id, base_url)
             except IVentAuthError:
                 errors["base"] = "invalid_auth"
             except IVentNotFoundError:
@@ -86,7 +92,7 @@ class IVentConfigFlow(ConfigFlow, domain=DOMAIN):
                     title += f" ({len(info.groups)} group{'s' if len(info.groups) != 1 else ''})"
                 return self.async_create_entry(
                     title=title,
-                    data={CONF_API_KEY: api_key, CONF_LOC_ID: loc_id},
+                    data={CONF_API_KEY: api_key, CONF_LOC_ID: loc_id, CONF_BASE_URL: base_url},
                 )
         return self.async_show_form(step_id="user", data_schema=_user_schema(), errors=errors)
 
@@ -101,7 +107,9 @@ class IVentConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             api_key = _normalize_api_key(user_input[CONF_API_KEY])
             try:
-                await self._async_validate(api_key, entry.data[CONF_LOC_ID])
+                await self._async_validate(
+                    api_key, entry.data[CONF_LOC_ID], entry.data.get(CONF_BASE_URL, BASE_URL)
+                )
             except IVentAuthError:
                 errors["base"] = "invalid_auth"
             except IVentError:
