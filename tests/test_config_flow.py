@@ -27,7 +27,22 @@ async def test_user_flow_success(hass: HomeAssistant, aioclient_mock) -> None:
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["title"] == "i-Vent location 12345 (1 group)"
-    assert result["data"] == {CONF_API_KEY: API_KEY, CONF_LOC_ID: LOC_ID, CONF_BASE_URL: BASE_URL}
+    assert result["data"] == {CONF_API_KEY: API_KEY, CONF_LOC_ID: str(LOC_ID), CONF_BASE_URL: BASE_URL}
+
+
+async def test_user_flow_loc_id_kept_as_text(hass: HomeAssistant, aioclient_mock) -> None:
+    """Test the loc_id is stored verbatim as text (leading zeros preserved)."""
+    aioclient_mock.get(f"{BASE_URL}/live/0042/info", json=INFO_RESPONSE)
+    aioclient_mock.get(f"{BASE_URL}/live/0042/schedules", json=SCHEDULES_RESPONSE)
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_API_KEY: API_KEY, CONF_LOC_ID: " 0042 "}
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_LOC_ID] == "0042"
+    assert "/live/0042/info" in str(aioclient_mock.mock_calls[0][1])
 
 
 async def test_user_flow_custom_base_url(hass: HomeAssistant, aioclient_mock) -> None:

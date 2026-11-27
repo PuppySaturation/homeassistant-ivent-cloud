@@ -52,7 +52,7 @@ def _user_schema() -> vol.Schema:
     return vol.Schema(
         {
             vol.Required(CONF_API_KEY): TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD)),
-            vol.Required(CONF_LOC_ID): NumberSelector(NumberSelectorConfig(min=0, mode=NumberSelectorMode.BOX)),
+            vol.Required(CONF_LOC_ID): TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT)),
             vol.Optional(CONF_BASE_URL, default=BASE_URL): TextSelector(
                 TextSelectorConfig(type=TextSelectorType.URL)
             ),
@@ -65,7 +65,7 @@ class IVentConfigFlow(ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
-    async def _async_validate(self, api_key: str, loc_id: int, base_url: str) -> LiveInfo:
+    async def _async_validate(self, api_key: str, loc_id: int | str, base_url: str) -> LiveInfo:
         client = IVentApiClient(async_get_clientsession(self.hass), api_key, loc_id, base_url)
         return await client.async_get_info()
 
@@ -74,13 +74,14 @@ class IVentConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         if user_input is not None:
             api_key = _normalize_api_key(user_input[CONF_API_KEY])
-            loc_id = int(user_input[CONF_LOC_ID])
+            loc_id = str(user_input[CONF_LOC_ID]).strip()
             base_url = (user_input.get(CONF_BASE_URL) or BASE_URL).strip().rstrip("/") or BASE_URL
-            await self.async_set_unique_id(str(loc_id))
+            await self.async_set_unique_id(loc_id)
             self._abort_if_unique_id_configured()
             try:
                 info = await self._async_validate(api_key, loc_id, base_url)
-            except IVentAuthError:
+            except IVentAuthError as err:
+                _LOGGER.debug("i-Vent auth failed for %s/live/%s/info: %s", base_url, loc_id, err)
                 errors["base"] = "invalid_auth"
             except IVentNotFoundError:
                 errors["base"] = "invalid_location"
@@ -110,7 +111,10 @@ class IVentConfigFlow(ConfigFlow, domain=DOMAIN):
                 await self._async_validate(
                     api_key, entry.data[CONF_LOC_ID], entry.data.get(CONF_BASE_URL, BASE_URL)
                 )
-            except IVentAuthError:
+            except IVentAuthError as err:
+                _LOGGER.debug(
+                    "i-Vent reauth failed for loc %s: %s", entry.data[CONF_LOC_ID], err
+                )
                 errors["base"] = "invalid_auth"
             except IVentError:
                 errors["base"] = "cannot_connect"
