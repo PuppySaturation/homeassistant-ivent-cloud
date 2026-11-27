@@ -6,11 +6,13 @@
         "description": "Enter the API key from your i-Vent account and the location ID (loc_id). The location ID can be found in the i-Vent app.",
         "data": {
           "api_key": "API key",
-          "loc_id": "Location ID (loc_id)"
+          "loc_id": "Location ID (loc_id)",
+          "base_url": "API base URL (advanced)"
         },
         "data_description": {
-          "api_key": "Bearer token used to authenticate against cloud.i-vent.com",
-          "loc_id": "Numeric location ID, e.g. 12345"
+          "api_key": "Bearer token used to authenticate against the i-Vent cloud",
+          "loc_id": "Numeric location ID, e.g. 12345",
+          "base_url": "Leave as default unless the i-Vent cloud uses a different host, e.g. for testing against a mock server"
         }
       },
       "reauth_confirm": {

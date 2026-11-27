@@ -8,9 +8,9 @@ from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 
-from custom_components.ivent.const import BASE_URL, CONF_LOC_ID, DOMAIN
+from custom_components.ivent.const import BASE_URL, CONF_BASE_URL, CONF_LOC_ID, DOMAIN
 
-from .conftest import API_KEY, INFO_URL, LOC_ID, mock_cloud
+from .conftest import API_KEY, INFO_RESPONSE, INFO_URL, LOC_ID, SCHEDULES_RESPONSE, mock_cloud
 
 
 async def test_user_flow_success(hass: HomeAssistant, aioclient_mock) -> None:
@@ -27,7 +27,24 @@ async def test_user_flow_success(hass: HomeAssistant, aioclient_mock) -> None:
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["title"] == "i-Vent location 12345 (1 group)"
-    assert result["data"] == {CONF_API_KEY: API_KEY, CONF_LOC_ID: LOC_ID}
+    assert result["data"] == {CONF_API_KEY: API_KEY, CONF_LOC_ID: LOC_ID, CONF_BASE_URL: BASE_URL}
+
+
+async def test_user_flow_custom_base_url(hass: HomeAssistant, aioclient_mock) -> None:
+    """Test that a custom base URL is used for validation and stored."""
+    mock_base = "https://ivent-mock.local/api/v1"
+    aioclient_mock.get(f"{mock_base}/live/{LOC_ID}/info", json=INFO_RESPONSE)
+    aioclient_mock.get(f"{mock_base}/live/{LOC_ID}/schedules", json=SCHEDULES_RESPONSE)
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_API_KEY: API_KEY, CONF_LOC_ID: LOC_ID, CONF_BASE_URL: mock_base + "/"},
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_BASE_URL] == mock_base
+    assert str(aioclient_mock.mock_calls[0][1]).startswith(mock_base)
 
 
 async def test_user_flow_normalizes_api_key(hass: HomeAssistant, aioclient_mock) -> None:
