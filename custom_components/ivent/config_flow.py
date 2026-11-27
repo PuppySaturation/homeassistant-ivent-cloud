@@ -32,6 +32,14 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
+def _normalize_api_key(api_key: str) -> str:
+    """Strip whitespace and an accidental 'Bearer ' prefix from the entered key."""
+    key = api_key.strip()
+    if key.lower().startswith("bearer "):
+        key = key[len("bearer ") :].strip()
+    return key
+
+
 def _api_key_schema() -> vol.Schema:
     return vol.Schema(
         {vol.Required(CONF_API_KEY): TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD))}
@@ -60,11 +68,12 @@ class IVentConfigFlow(ConfigFlow, domain=DOMAIN):
         """Ask for API key and location id, then validate against the cloud."""
         errors: dict[str, str] = {}
         if user_input is not None:
+            api_key = _normalize_api_key(user_input[CONF_API_KEY])
             loc_id = int(user_input[CONF_LOC_ID])
             await self.async_set_unique_id(str(loc_id))
             self._abort_if_unique_id_configured()
             try:
-                info = await self._async_validate(user_input[CONF_API_KEY], loc_id)
+                info = await self._async_validate(api_key, loc_id)
             except IVentAuthError:
                 errors["base"] = "invalid_auth"
             except IVentNotFoundError:
@@ -77,7 +86,7 @@ class IVentConfigFlow(ConfigFlow, domain=DOMAIN):
                     title += f" ({len(info.groups)} group{'s' if len(info.groups) != 1 else ''})"
                 return self.async_create_entry(
                     title=title,
-                    data={CONF_API_KEY: user_input[CONF_API_KEY], CONF_LOC_ID: loc_id},
+                    data={CONF_API_KEY: api_key, CONF_LOC_ID: loc_id},
                 )
         return self.async_show_form(step_id="user", data_schema=_user_schema(), errors=errors)
 
@@ -90,15 +99,16 @@ class IVentConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
         if user_input is not None:
+            api_key = _normalize_api_key(user_input[CONF_API_KEY])
             try:
-                await self._async_validate(user_input[CONF_API_KEY], entry.data[CONF_LOC_ID])
+                await self._async_validate(api_key, entry.data[CONF_LOC_ID])
             except IVentAuthError:
                 errors["base"] = "invalid_auth"
             except IVentError:
                 errors["base"] = "cannot_connect"
             else:
                 return self.async_update_reload_and_abort(
-                    entry, data={**entry.data, CONF_API_KEY: user_input[CONF_API_KEY]}
+                    entry, data={**entry.data, CONF_API_KEY: api_key}
                 )
         return self.async_show_form(
             step_id="reauth_confirm",
