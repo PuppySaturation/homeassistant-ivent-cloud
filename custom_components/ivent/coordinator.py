@@ -45,7 +45,7 @@ class IVentCoordinator(DataUpdateCoordinator[IVentData]):
             config_entry=entry,
         )
         self.api = api
-        self.loc_id: int = entry.data[CONF_LOC_ID]
+        self.loc_id: int | str = entry.data[CONF_LOC_ID]
 
     async def _async_update_data(self) -> IVentData:
         """Fetch info and schedules from the cloud."""
