@@ -30,6 +30,21 @@ async def test_user_flow_success(hass: HomeAssistant, aioclient_mock) -> None:
     assert result["data"] == {CONF_API_KEY: API_KEY, CONF_LOC_ID: LOC_ID}
 
 
+async def test_user_flow_normalizes_api_key(hass: HomeAssistant, aioclient_mock) -> None:
+    """Test that whitespace and an accidental 'Bearer ' prefix are stripped from the key."""
+    mock_cloud(aioclient_mock)
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_API_KEY: "  Bearer test-api-key\n", CONF_LOC_ID: LOC_ID}
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_API_KEY] == API_KEY
+    _method, _url, _data, headers = aioclient_mock.mock_calls[0]
+    assert headers["Authorization"] == f"Bearer {API_KEY}"
+
+
 async def test_user_flow_invalid_auth(hass: HomeAssistant, aioclient_mock) -> None:
     """Test a 401 from the API shows invalid_auth."""
     aioclient_mock.get(INFO_URL, status=401)

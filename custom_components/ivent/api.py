@@ -160,7 +160,7 @@ class IVentApiClient:
             async with asyncio.timeout(REQUEST_TIMEOUT_SECONDS):
                 async with self._session.request(method, url, headers=self._headers, json=payload) as response:
                     if response.status in (401, 403):
-                        raise IVentAuthError("Invalid API key")
+                        raise IVentAuthError(f"Invalid API key (HTTP {response.status})")
                     if response.status == 404:
                         raise IVentNotFoundError(f"Not found: {url}")
                     if response.status >= 400:

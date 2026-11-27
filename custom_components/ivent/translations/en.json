@@ -24,7 +24,7 @@
     "error": {
       "cannot_connect": "Failed to connect to the i-Vent cloud",
       "invalid_auth": "Invalid API key",
-      "invalid_location": "Location not found, check the location ID",
+      "invalid_location": "Location not found - verify the loc_id. Tip: the i-Vent app calls /api/v1/live/<loc_id>/info, so the loc_id can be seen in the app's network requests (e.g. via a proxy) or in the app's location settings",
       "unknown": "Unexpected error"
     },
     "abort": {
