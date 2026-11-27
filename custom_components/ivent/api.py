@@ -148,10 +148,12 @@ class LiveInfo:
 class IVentApiClient:
     """Thin async wrapper around the i-Vent cloud API for one location."""
 
-    def __init__(self, session: aiohttp.ClientSession, api_key: str, loc_id: int) -> None:
-        """Initialize the client with a session, bearer API key and location id."""
+    def __init__(
+        self, session: aiohttp.ClientSession, api_key: str, loc_id: int | str, base_url: str = BASE_URL
+    ) -> None:
+        """Initialize the client with a session, bearer API key, location id and base URL."""
         self._session = session
-        self._base_url = f"{BASE_URL}/live/{loc_id}"
+        self._base_url = f"{base_url.rstrip('/')}/live/{loc_id}"
         self._headers = {"Authorization": f"Bearer {api_key}", "Accept": "application/json"}
 
     async def _request(self, method: str, path: str, payload: dict[str, Any] | None = None) -> Any:

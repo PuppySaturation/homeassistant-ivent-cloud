@@ -10,6 +10,7 @@ BASE_URL: Final = "https://cloud.i-vent.com/api/v1"
 
 CONF_LOC_ID: Final = "loc_id"
 CONF_SCAN_INTERVAL: Final = "scan_interval"
+CONF_BASE_URL: Final = "base_url"
 
 DEFAULT_SCAN_INTERVAL: Final = timedelta(seconds=30)
 MIN_SCAN_INTERVAL_SECONDS: Final = 10

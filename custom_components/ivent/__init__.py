@@ -14,7 +14,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import IVentApiClient
-from .const import CONF_LOC_ID, DAY_PRESETS, DOMAIN, MANUFACTURER, SpecialMode, WorkMode
+from .const import BASE_URL, CONF_BASE_URL, CONF_LOC_ID, DAY_PRESETS, DOMAIN, MANUFACTURER, SpecialMode, WorkMode
 from .coordinator import IVentCoordinator
 from .entity import location_identifier
 
@@ -55,7 +55,10 @@ REMOVE_SCHEDULE_SCHEMA = vol.Schema(
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up i-Vent Cloud from a config entry."""
     api = IVentApiClient(
-        async_get_clientsession(hass), entry.data[CONF_API_KEY], entry.data[CONF_LOC_ID]
+        async_get_clientsession(hass),
+        entry.data[CONF_API_KEY],
+        entry.data[CONF_LOC_ID],
+        entry.data.get(CONF_BASE_URL, BASE_URL),
     )
     coordinator = IVentCoordinator(hass, entry, api)
     await coordinator.async_config_entry_first_refresh()
