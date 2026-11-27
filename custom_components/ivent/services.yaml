@@ -1,0 +1,79 @@
+add_schedule:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: ivent
+    hour:
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 23
+          mode: box
+    minute:
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 59
+          mode: box
+    days:
+      required: true
+      selector:
+        select:
+          options:
+            - Every day
+            - Weekdays
+            - Weekends
+            - Monday
+            - Tuesday
+            - Wednesday
+            - Thursday
+            - Friday
+            - Saturday
+            - Sunday
+    work_mode:
+      required: true
+      selector:
+        select:
+          options:
+            - IVentWorkOff
+            - IVentOn
+            - IVentCustom
+            - IVentRecuperation1
+            - IVentRecuperation2
+            - IVentRecuperation3
+            - IVentBypass1
+            - IVentBypass2
+            - IVentBypass3
+    special_mode:
+      required: true
+      selector:
+        select:
+          options:
+            - IVentSpecialOff
+            - IVentBoost
+            - IVentSnooze
+            - IVentNight1
+            - IVentNight2
+    enabled:
+      required: false
+      default: true
+      selector:
+        boolean:
+
+remove_schedule:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: ivent
+    schedule_id:
+      required: true
+      selector:
+        number:
+          min: 0
+          mode: box
