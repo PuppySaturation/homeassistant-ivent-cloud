@@ -22,6 +22,8 @@ jobs:
         uses: hacs/action@main
         with:
           category: integration
+          # Repo is intentionally not listed in HACS search (no `homeassistant` topic yet)
+          ignore: "topics"
   test:
     name: Tests
     runs-on: ubuntu-latest
