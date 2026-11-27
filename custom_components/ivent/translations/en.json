@@ -1,0 +1,107 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to i-Vent Cloud",
+        "description": "Enter the API key from your i-Vent account and the location ID (loc_id). The location ID can be found in the i-Vent app.",
+        "data": {
+          "api_key": "API key",
+          "loc_id": "Location ID (loc_id)"
+        },
+        "data_description": {
+          "api_key": "Bearer token used to authenticate against cloud.i-vent.com",
+          "loc_id": "Numeric location ID, e.g. 12345"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate with i-Vent Cloud",
+        "description": "The API key for location {loc_id} is no longer valid. Enter a new API key.",
+        "data": {
+          "api_key": "API key"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the i-Vent cloud",
+      "invalid_auth": "Invalid API key",
+      "invalid_location": "Location not found, check the location ID",
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "already_configured": "This location is already configured",
+      "reauth_successful": "Re-authentication was successful"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "i-Vent Cloud options",
+        "data": {
+          "scan_interval": "Polling interval (seconds)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "select": {
+      "special_mode": { "name": "Special mode" },
+      "bypass_rotation": { "name": "Bypass rotation" },
+      "remote_control_mode": { "name": "Remote control mode" },
+      "led_mode": { "name": "LED mode" },
+      "buzzer_mode": { "name": "Buzzer mode" },
+      "schedule_work_mode": { "name": "Schedule work mode" },
+      "schedule_special_mode": { "name": "Schedule special mode" },
+      "schedule_days": { "name": "Schedule days" }
+    },
+    "switch": {
+      "schedules_enabled": { "name": "Schedules enabled" },
+      "schedule_item_enabled": { "name": "Schedule item enabled" },
+      "reverse_flow": { "name": "Reverse flow" }
+    },
+    "sensor": {
+      "rssi": { "name": "Signal strength" },
+      "firmware_version": { "name": "Firmware version" },
+      "status_esp": { "name": "ESP status" },
+      "special_mode_ends_at": { "name": "Special mode ends at" },
+      "network_hash": { "name": "Network hash" }
+    },
+    "binary_sensor": {
+      "alive": { "name": "Online" }
+    },
+    "time": {
+      "schedule_time": { "name": "Schedule time" }
+    }
+  },
+  "services": {
+    "add_schedule": {
+      "name": "Add schedule",
+      "description": "Adds a weekly schedule item to an i-Vent ventilation group.",
+      "fields": {
+        "device_id": {
+          "name": "Group",
+          "description": "The i-Vent group (or a device of the group) to add the schedule to."
+        },
+        "hour": { "name": "Hour", "description": "Hour (0-23) at which the schedule fires." },
+        "minute": { "name": "Minute", "description": "Minute (0-59) at which the schedule fires." },
+        "days": { "name": "Days", "description": "Days the schedule is active." },
+        "work_mode": { "name": "Work mode", "description": "Work mode the group switches to." },
+        "special_mode": { "name": "Special mode", "description": "Special mode the group switches to." },
+        "enabled": { "name": "Enabled", "description": "Whether the new schedule item is enabled." }
+      }
+    },
+    "remove_schedule": {
+      "name": "Remove schedule",
+      "description": "Removes a schedule item from an i-Vent ventilation group.",
+      "fields": {
+        "device_id": {
+          "name": "Group",
+          "description": "The i-Vent group (or a device of the group) to remove the schedule from."
+        },
+        "schedule_id": {
+          "name": "Schedule ID",
+          "description": "The schedule_id of the schedule item to remove (see the schedule entity unique IDs)."
+        }
+      }
+    }
+  }
+}

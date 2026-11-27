@@ -1,0 +1,11 @@
+{
+  "domain": "ivent",
+  "name": "i-Vent Cloud",
+  "codeowners": ["@PuppySaturation"],
+  "config_flow": true,
+  "documentation": "https://github.com/PuppySaturation/homeassistant-ivent-cloud",
+  "integration_type": "hub",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/PuppySaturation/homeassistant-ivent-cloud/issues",
+  "version": "0.1.0"
+}
