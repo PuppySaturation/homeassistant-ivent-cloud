@@ -85,7 +85,7 @@ def mock_config_entry() -> MockConfigEntry:
         domain=DOMAIN,
         title=f"i-Vent location {LOC_ID}",
         unique_id=str(LOC_ID),
-        data={CONF_API_KEY: API_KEY, CONF_LOC_ID: LOC_ID},
+        data={CONF_API_KEY: API_KEY, CONF_LOC_ID: str(LOC_ID)},
     )
 
 
