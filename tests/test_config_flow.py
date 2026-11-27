@@ -21,7 +21,7 @@ async def test_user_flow_success(hass: HomeAssistant, aioclient_mock) -> None:
     assert result["step_id"] == "user"
 
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {CONF_API_KEY: API_KEY, CONF_LOC_ID: LOC_ID}
+        result["flow_id"], {CONF_API_KEY: API_KEY, CONF_LOC_ID: str(LOC_ID)}
     )
     await hass.async_block_till_done()
 
@@ -53,7 +53,7 @@ async def test_user_flow_custom_base_url(hass: HomeAssistant, aioclient_mock) ->
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
-        {CONF_API_KEY: API_KEY, CONF_LOC_ID: LOC_ID, CONF_BASE_URL: mock_base + "/"},
+        {CONF_API_KEY: API_KEY, CONF_LOC_ID: str(LOC_ID), CONF_BASE_URL: mock_base + "/"},
     )
     await hass.async_block_till_done()
 
@@ -67,7 +67,7 @@ async def test_user_flow_normalizes_api_key(hass: HomeAssistant, aioclient_mock)
     mock_cloud(aioclient_mock)
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {CONF_API_KEY: "  Bearer test-api-key\n", CONF_LOC_ID: LOC_ID}
+        result["flow_id"], {CONF_API_KEY: "  Bearer test-api-key\n", CONF_LOC_ID: str(LOC_ID)}
     )
     await hass.async_block_till_done()
 
@@ -82,7 +82,7 @@ async def test_user_flow_invalid_auth(hass: HomeAssistant, aioclient_mock) -> No
     aioclient_mock.get(INFO_URL, status=401)
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {CONF_API_KEY: "bad-key", CONF_LOC_ID: LOC_ID}
+        result["flow_id"], {CONF_API_KEY: "bad-key", CONF_LOC_ID: str(LOC_ID)}
     )
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "invalid_auth"}
@@ -93,7 +93,7 @@ async def test_user_flow_invalid_location(hass: HomeAssistant, aioclient_mock) -
     aioclient_mock.get(f"{BASE_URL}/live/999/info", status=404)
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {CONF_API_KEY: API_KEY, CONF_LOC_ID: 999}
+        result["flow_id"], {CONF_API_KEY: API_KEY, CONF_LOC_ID: "999"}
     )
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "invalid_location"}
@@ -104,7 +104,7 @@ async def test_user_flow_cannot_connect(hass: HomeAssistant, aioclient_mock) -> 
     aioclient_mock.get(INFO_URL, exc=aiohttp.ClientConnectionError("boom"))
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {CONF_API_KEY: API_KEY, CONF_LOC_ID: LOC_ID}
+        result["flow_id"], {CONF_API_KEY: API_KEY, CONF_LOC_ID: str(LOC_ID)}
     )
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "cannot_connect"}
@@ -116,7 +116,7 @@ async def test_user_flow_duplicate_location(hass: HomeAssistant, aioclient_mock,
     mock_cloud(aioclient_mock)
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {CONF_API_KEY: API_KEY, CONF_LOC_ID: LOC_ID}
+        result["flow_id"], {CONF_API_KEY: API_KEY, CONF_LOC_ID: str(LOC_ID)}
     )
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "already_configured"
