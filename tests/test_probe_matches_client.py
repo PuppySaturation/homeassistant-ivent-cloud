@@ -1,14 +1,12 @@
-"""Cross-check: the standalone probe script and the HA API client must send identical requests.
+"""Cross-check: the probe script must use the same client code as HA.
 
-The probe script (scripts/ivent_api_probe.py) is used outside HA for diagnosis;
-HA itself uses custom_components/ivent/api.py. These tests run both against the
-same canned responses and assert the requests match, so probe output is
-meaningful evidence about what the integration will send.
+The probe (scripts/ivent_api_probe.py) loads custom_components/ivent/api.py and
+sends requests through IVentApiClient - the exact class HA uses. These tests run
+the probe and the client directly against the same mocked HTTP layer and assert
+the recorded requests are identical.
 """
 
 from __future__ import annotations
-
-import json
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -16,66 +14,52 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from custom_components.ivent.api import IVentApiClient
 from custom_components.ivent.const import BASE_URL
 
-from .conftest import API_KEY
-from .test_probe_script import INFO, FakeResponse, probe
+from .conftest import API_KEY, INFO_RESPONSE
+from .test_probe_script import REMOTE_WRITE, probe
 
 
 async def test_probe_and_ha_client_send_identical_get(
     hass: HomeAssistant, aioclient_mock, monkeypatch, capsys
 ) -> None:
-    """GET /info: probe (urllib) and IVentApiClient (aiohttp) must produce the same request."""
+    """Probe `info` and IVentApiClient.async_get_info must produce the same request."""
     loc = "42"
-    aioclient_mock.get(f"{BASE_URL}/live/{loc}/info", json=INFO)
-    client = IVentApiClient(async_get_clientsession(hass), API_KEY, loc)
+    url = f"{BASE_URL}/live/{loc}/info"
+    aioclient_mock.get(url, json=INFO_RESPONSE)
+    monkeypatch.setattr(
+        probe.aiohttp, "ClientSession", lambda *a, **k: aioclient_mock.create_session(hass.loop)
+    )
 
-    captured = []
-
-    def fake_urlopen(req, timeout=0):
-        captured.append(req)
-        return FakeResponse(200, INFO)
-
-    monkeypatch.setattr(probe.urllib.request, "urlopen", fake_urlopen)
-    assert probe.main(["--key", API_KEY, "--loc", loc, "info"]) == 0
+    assert await probe.run_probe(probe.parse_args(["--key", API_KEY, "--loc", loc, "info"])) == 0
     capsys.readouterr()
 
-    info = await client.async_get_info()
-    assert info.network_hash == INFO["network_hash"]
+    client = IVentApiClient(async_get_clientsession(hass), API_KEY, loc)
+    await client.async_get_info()
 
-    method, url, _data, headers = aioclient_mock.mock_calls[0]
-    req = captured[0]
-    assert method == req.method == "GET"
-    assert str(url) == req.full_url
-    assert headers["Authorization"] == req.headers["Authorization"] == f"Bearer {API_KEY}"
+    probe_call, client_call = aioclient_mock.mock_calls
+    assert probe_call == client_call
+    assert probe_call[0] == "GET"
+    assert str(probe_call[1]) == url
+    assert probe_call[3]["Authorization"] == f"Bearer {API_KEY}"
 
 
 async def test_probe_echo_and_ha_client_modify_group_match(
     hass: HomeAssistant, aioclient_mock, monkeypatch, capsys
 ) -> None:
-    """The probe's `echo` POST and IVentApiClient.async_modify_group must send the same payload."""
+    """Probe `echo` and IVentApiClient.async_modify_group must send the same POST payload."""
     loc = "42"
-    group = INFO["groups"][0]
+    aioclient_mock.get(f"{BASE_URL}/live/{loc}/info", json=INFO_RESPONSE)
     aioclient_mock.post(f"{BASE_URL}/live/{loc}/modify_group", status=200)
+    monkeypatch.setattr(
+        probe.aiohttp, "ClientSession", lambda *a, **k: aioclient_mock.create_session(hass.loop)
+    )
 
-    posts = []
-
-    def fake_urlopen(req, timeout=0):
-        if req.method == "GET":
-            return FakeResponse(200, INFO)
-        posts.append((req.full_url, req.method, json.loads(req.data.decode()), req.headers["Authorization"]))
-        return FakeResponse(200, None)
-
-    monkeypatch.setattr(probe.urllib.request, "urlopen", fake_urlopen)
-    assert probe.main(["--key", API_KEY, "--loc", loc, "echo"]) == 0
+    assert await probe.run_probe(probe.parse_args(["--key", API_KEY, "--loc", loc, "echo"])) == 0
     capsys.readouterr()
 
     client = IVentApiClient(async_get_clientsession(hass), API_KEY, loc)
-    await client.async_modify_group(
-        group["id"], remote_work_mode=probe.remote_write_payload(group["remote"])
-    )
+    await client.async_modify_group(1, remote_work_mode=dict(REMOTE_WRITE))
 
-    method, url, data, headers = aioclient_mock.mock_calls[-1]
-    p_url, p_method, p_data, p_auth = posts[0]
-    assert method == p_method == "POST"
-    assert str(url) == p_url
-    assert data == p_data
-    assert headers["Authorization"] == p_auth == f"Bearer {API_KEY}"
+    probe_post = next(c for c in aioclient_mock.mock_calls if c[0] == "POST")
+    client_post = aioclient_mock.mock_calls[-1]
+    assert probe_post == client_post
+    assert probe_post[2] == {"group_id": 1, "remote_work_mode": REMOTE_WRITE}

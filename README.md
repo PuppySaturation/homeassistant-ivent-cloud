@@ -27,16 +27,19 @@ systems, built on the i-Vent Smart Home Cloud API (`https://cloud.i-vent.com/api
 ## Testing the API locally (outside Home Assistant)
 
 `scripts/ivent_api_probe.py` is a small diagnostic script that calls the cloud API
-directly — useful to verify your key/loc_id before involving HA.
+**using the exact same client code as the integration** (`custom_components/ivent/api.py`),
+so its output matches what Home Assistant sends — useful to verify your key/loc_id
+before involving HA.
 
-**Requirements:** Python 3.11+ only. The script uses just the standard library, so
-**no virtualenv and no `pip install` are needed** — any machine with Python works:
+**Requirements:** Python 3.11+ and `aiohttp`:
 
 ```bash
 python3 --version   # needs 3.11+
+pip install aiohttp
 ```
 
-(If you prefer isolation: `python3 -m venv .venv && source .venv/bin/activate` — nothing extra to install either.)
+(or run it inside any environment where Home Assistant is installed, e.g. the dev
+venv — HA bundles aiohttp). No virtualenv is required otherwise.
 
 **Usage** — set the credentials as environment variables in the *same* shell you run the
 script from (use `read -s` to type them so they don't land in shell history; a stale
