@@ -1,13 +1,18 @@
-"""Tests for the standalone API probe script (scripts/ivent_api_probe.py)."""
+"""Tests for the standalone API probe script (scripts/ivent_api_probe.py).
+
+The probe uses the integration's own client (custom_components/ivent/api.py),
+so these tests intercept its aiohttp session with the aioclient_mock.
+"""
 
 from __future__ import annotations
 
 import importlib.util
-import io
-import json
 from pathlib import Path
 
 import pytest
+from homeassistant.core import HomeAssistant
+
+from .conftest import API_KEY, INFO_RESPONSE, SCHEDULES_RESPONSE
 
 SCRIPT = Path(__file__).parent.parent / "scripts" / "ivent_api_probe.py"
 spec = importlib.util.spec_from_file_location("ivent_api_probe", SCRIPT)
@@ -15,126 +20,89 @@ probe = importlib.util.module_from_spec(spec)
 assert spec.loader is not None
 spec.loader.exec_module(probe)
 
-INFO = {
-    "network_hash": 123,
-    "groups": [
-        {
-            "id": 7,
-            "name": "Attic",
-            "remote": {
-                "work_mode": "IVentOn",
-                "special_mode": "IVentSpecialOff",
-                "bypass_rotation": "BypassForward",
-                "remote_control_work_mode": "Normal",
-                "remote_control_speed": 2,
-                "special_mode_ends_at": 0,
-            },
-            "enable_schedule": True,
-            "led_work_mode": "LedOnMode",
-            "buzzer_work_mode": "BuzzerOffMode",
-            "devices": [
-                {
-                    "mac_address": "AA:BB:CC:DD:EE:FF",
-                    "rssi": -60,
-                    "alive": True,
-                    "reverse_flow": False,
-                    "device_name": "Vent 1",
-                    "firmware_version": 3,
-                    "status_esp": 0,
-                }
-            ],
-        }
-    ],
+INFO_URL = f"{probe.DEFAULT_BASE_URL}/live/42/info"
+SCHEDULES_URL = f"{probe.DEFAULT_BASE_URL}/live/42/schedules"
+MODIFY_GROUP_URL = f"{probe.DEFAULT_BASE_URL}/live/42/modify_group"
+
+REMOTE_WRITE = {
+    "work_mode": "IVentOn",
+    "special_mode": "IVentSpecialOff",
+    "bypass_rotation": "BypassForward",
+    "remote_control_work_mode": "Normal",
+    "remote_control_speed": 2,
 }
 
 
-class FakeResponse:
-    def __init__(self, status: int, payload: object) -> None:
-        self.status = status
-        self._raw = b"" if payload is None else json.dumps(payload).encode()
-
-    def read(self) -> bytes:
-        return self._raw
-
-    def __enter__(self) -> FakeResponse:
-        return self
-
-    def __exit__(self, *args: object) -> bool:
-        return False
+@pytest.fixture
+def probe_session(hass: HomeAssistant, aioclient_mock, monkeypatch: pytest.MonkeyPatch):
+    """Route the probe script's aiohttp.ClientSession through the aioclient_mock."""
+    monkeypatch.setattr(
+        probe.aiohttp, "ClientSession", lambda *a, **k: aioclient_mock.create_session(hass.loop)
+    )
+    return aioclient_mock
 
 
-def _patch_urlopen(monkeypatch: pytest.MonkeyPatch, handler) -> list:
-    calls = []
-
-    def fake_urlopen(req, timeout=0):
-        calls.append(req)
-        return handler(req)
-
-    monkeypatch.setattr(probe.urllib.request, "urlopen", fake_urlopen)
-    return calls
-
-
-def test_info_success(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture) -> None:
+async def test_info_success(hass, probe_session, capsys: pytest.CaptureFixture) -> None:
     """A 200 on /info prints the group summary and exits 0."""
-    calls = _patch_urlopen(monkeypatch, lambda req: FakeResponse(200, INFO))
-    rc = probe.main(["--key", "k", "--loc", "42", "info"])
+    probe_session.get(INFO_URL, json=INFO_RESPONSE)
+    rc = await probe.run_probe(probe.parse_args(["--key", API_KEY, "--loc", "42", "info"]))
     assert rc == 0
-    assert calls[0].headers["Authorization"] == "Bearer k"
-    assert "/live/42/info" in calls[0].full_url
+    method, url, _data, headers = probe_session.mock_calls[0]
+    assert method == "GET"
+    assert str(url) == INFO_URL
+    assert headers["Authorization"] == f"Bearer {API_KEY}"
     out = capsys.readouterr().out
-    assert "HTTP 200" in out
-    assert "Group 7: 'Attic'" in out
+    assert "200 OK" in out
+    assert "Group 1: 'Living room'" in out
     assert "work_mode=IVentOn speed=2" in out
 
 
-def test_bearer_prefix_stripped(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_bearer_prefix_stripped(hass, probe_session) -> None:
     """A pasted 'Bearer <key>' value is normalized before sending."""
-    calls = _patch_urlopen(monkeypatch, lambda req: FakeResponse(200, INFO))
-    assert probe.main(["--key", " Bearer secret\n", "--loc", "42", "info"]) == 0
-    assert calls[0].headers["Authorization"] == "Bearer secret"
+    probe_session.get(INFO_URL, json=INFO_RESPONSE)
+    rc = await probe.run_probe(probe.parse_args(["--key", "  Bearer secret\n", "--loc", "42", "info"]))
+    assert rc == 0
+    _method, _url, _data, headers = probe_session.mock_calls[0]
+    assert headers["Authorization"] == "Bearer secret"
 
 
-def test_401_hint(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture) -> None:
+async def test_401_hint(hass, probe_session, capsys: pytest.CaptureFixture) -> None:
     """A 401 prints the regenerate-the-key hint and exits 1."""
-
-    def handler(req):
-        raise probe.urllib.error.HTTPError(
-            req.full_url, 401, "Unauthorized", {}, io.BytesIO(b'{"error":"invalid api key"}')
-        )
-
-    _patch_urlopen(monkeypatch, handler)
-    rc = probe.main(["--key", "stale", "--loc", "42", "info"])
+    probe_session.get(INFO_URL, status=401, text='{"error":"invalid api key"}')
+    rc = await probe.run_probe(probe.parse_args(["--key", "stale", "--loc", "42", "info"]))
     assert rc == 1
     out = capsys.readouterr().out
     assert "HTTP 401" in out
-    assert "Regenerate it" in out
+    assert "regenerate the API key" in out
 
 
-def test_echo_sends_current_values_unchanged(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
-) -> None:
-    """The echo write test POSTs modify_group with the current remote values."""
-    posts = []
+async def test_404_hint(hass, probe_session, capsys: pytest.CaptureFixture) -> None:
+    """A 404 prints the loc_id hint and exits 1."""
+    probe_session.get(INFO_URL, status=404)
+    rc = await probe.run_probe(probe.parse_args(["--key", API_KEY, "--loc", "42", "info"]))
+    assert rc == 1
+    assert "loc_id" in capsys.readouterr().out
 
-    def handler(req):
-        if req.method == "GET":
-            return FakeResponse(200, INFO)
-        posts.append(json.loads(req.data.decode()))
-        return FakeResponse(200, None)
 
-    _patch_urlopen(monkeypatch, handler)
-    rc = probe.main(["--key", "k", "--loc", "42", "echo"])
+async def test_schedules(hass, probe_session, capsys: pytest.CaptureFixture) -> None:
+    """The schedules command prints the schedule items."""
+    probe_session.get(SCHEDULES_URL, json=SCHEDULES_RESPONSE)
+    rc = await probe.run_probe(probe.parse_args(["--key", API_KEY, "--loc", "42", "schedules"]))
     assert rc == 0
-    assert posts == [
-        {
-            "group_id": 7,
-            "remote_work_mode": {
-                "work_mode": "IVentOn",
-                "special_mode": "IVentSpecialOff",
-                "bypass_rotation": "BypassForward",
-                "remote_control_work_mode": "Normal",
-                "remote_control_speed": 2,
-            },
-        }
-    ]
+    out = capsys.readouterr().out
+    assert "schedule_id=123456" in out
+    assert "days=Mon, Tue, Wed, Thu, Fri" in out
+
+
+async def test_echo_sends_current_values_unchanged(
+    hass, probe_session, capsys: pytest.CaptureFixture
+) -> None:
+    """The echo write test POSTs modify_group with the current remote values unchanged."""
+    probe_session.get(INFO_URL, json=INFO_RESPONSE)
+    probe_session.post(MODIFY_GROUP_URL, status=200)
+    rc = await probe.run_probe(probe.parse_args(["--key", API_KEY, "--loc", "42", "echo"]))
+    assert rc == 0
+    posts = [c for c in probe_session.mock_calls if c[0] == "POST"]
+    assert len(posts) == 1
+    assert posts[0][2] == {"group_id": 1, "remote_work_mode": REMOTE_WRITE}
     assert "write path OK" in capsys.readouterr().out
